@@ -16,9 +16,9 @@
 from . import (
     auto_models,
     embedder_models,
-    labels
+    labels,
+    featurizers
 )
-from .auto_models import AutoModel
 from .embedder_models import Embedder
 from .features import (
     entity_features,
@@ -40,7 +40,7 @@ __all__ = [
     "auto_models",
     "embedder_models",
     "labels",
-    "AutoModel",
+    "classifiers",
     "Embedder",
     "query_features",
     "entity_features",

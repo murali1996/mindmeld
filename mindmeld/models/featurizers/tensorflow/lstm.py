@@ -20,8 +20,9 @@ import tensorflow as tf
 from sklearn.externals import joblib
 from sklearn.preprocessing import LabelBinarizer
 
-from .taggers import Tagger, extract_sequence_features
-from ..dense_featurizers.embeddings import CharacterSequenceEmbedding, WordSequenceEmbedding
+from ..tagger import Tagger
+from ..embeddings import CharacterSequenceEmbedding, WordSequenceEmbedding
+from ..utils import extract_sequence_features
 
 DEFAULT_ENTITY_TOKEN_SPAN_INDEX = 2
 GAZ_PATTERN_MATCH = r"in-gaz\|type:(\w+)\|pos:(\w+)\|"
@@ -34,7 +35,7 @@ ZERO_INITIALIZER_VALUE = 0
 logger = logging.getLogger(__name__)
 
 
-class LstmModel(Tagger):  # pylint: disable=too-many-instance-attributes
+class LstmForTokenClassification(Tagger):  # pylint: disable=too-many-instance-attributes
     """This class encapsulates the bi-directional LSTM model and provides
     the correct interface for use by the tagger model"""
 
@@ -131,71 +132,6 @@ class LstmModel(Tagger):  # pylint: disable=too-many-instance-attributes
     def get_params(self, deep=True):
         return self.__dict__
 
-    def construct_tf_variables(self):
-        """
-        Constructs the variables and operations in the TensorFlow session graph
-        """
-        with self.graph.as_default():
-            self.dense_keep_prob_tf = tf.placeholder(
-                tf.float32, name="dense_keep_prob_tf"
-            )
-            self.lstm_input_keep_prob_tf = tf.placeholder(
-                tf.float32, name="lstm_input_keep_prob_tf"
-            )
-            self.lstm_output_keep_prob_tf = tf.placeholder(
-                tf.float32, name="lstm_output_keep_prob_tf"
-            )
-
-            self.query_input_tf = tf.placeholder(
-                tf.float32,
-                [None, self.padding_length, self.token_embedding_dimension],
-                name="query_input_tf",
-            )
-
-            self.gaz_input_tf = tf.placeholder(
-                tf.float32,
-                [None, self.padding_length, self.gaz_dimension],
-                name="gaz_input_tf",
-            )
-
-            self.label_tf = tf.placeholder(
-                tf.int32,
-                [None, int(self.padding_length), self.output_dimension],
-                name="label_tf",
-            )
-
-            self.batch_sequence_lengths_tf = tf.placeholder(
-                tf.int32, shape=[None], name="batch_sequence_lengths_tf"
-            )
-
-            self.batch_sequence_mask_tf = tf.placeholder(
-                tf.bool, shape=[None], name="batch_sequence_mask_tf"
-            )
-
-            if self.use_char_embeddings:
-                self.char_input_tf = tf.placeholder(
-                    tf.float32,
-                    [
-                        None,
-                        self.padding_length,
-                        self.max_char_per_word,
-                        self.character_embedding_dimension,
-                    ],
-                    name="char_input_tf",
-                )
-
-            combined_embedding_tf = self._construct_embedding_network()
-            self.lstm_output_tf = self._construct_lstm_network(combined_embedding_tf)
-            self.lstm_output_softmax_tf = tf.nn.softmax(
-                self.lstm_output_tf, name="output_softmax_tensor"
-            )
-            self.optimizer_tf, self.cost_tf = self._define_optimizer_and_cost()
-
-            self.global_init = tf.global_variables_initializer()
-            self.local_init = tf.local_variables_initializer()
-
-            self.saver = tf.train.Saver()
-
     def extract_features(self, examples, config, resources, y=None, fit=True):
         """Transforms a list of examples into features that are then used by the
         deep learning model.
@@ -276,7 +212,7 @@ class LstmModel(Tagger):  # pylint: disable=too-many-instance-attributes
                 self.max_char_per_word,
             )
 
-    def construct_feed_dictionary(
+    def _construct_feed_dictionary(
         self, batch_examples, batch_char, batch_gaz, batch_seq_len, batch_labels=None
     ):
         """Constructs the feed dictionary that is used to feed data into the tensors
@@ -334,7 +270,7 @@ class LstmModel(Tagger):  # pylint: disable=too-many-instance-attributes
 
             for window_size in self.char_window_sizes:
                 word_level_char_embeddings_list.append(
-                    self.apply_convolution(
+                    self._apply_convolution(
                         self.char_input_tf, batch_size_dim, window_size
                     )
                 )
@@ -354,7 +290,7 @@ class LstmModel(Tagger):  # pylint: disable=too-many-instance-attributes
 
         return combined_embedding_tf
 
-    def apply_convolution(self, input_tensor, batch_size, char_window_size):
+    def _apply_convolution(self, input_tensor, batch_size, char_window_size):
         """Constructs a convolution network of a specific window size
 
         Args:
@@ -806,6 +742,71 @@ class LstmModel(Tagger):  # pylint: disable=too-many-instance-attributes
 
         return padded_query, extracted_gaz_tokens, padded_char
 
+    def _construct_tf_variables(self):
+        """
+        Constructs the variables and operations in the TensorFlow session graph
+        """
+        with self.graph.as_default():
+            self.dense_keep_prob_tf = tf.placeholder(
+                tf.float32, name="dense_keep_prob_tf"
+            )
+            self.lstm_input_keep_prob_tf = tf.placeholder(
+                tf.float32, name="lstm_input_keep_prob_tf"
+            )
+            self.lstm_output_keep_prob_tf = tf.placeholder(
+                tf.float32, name="lstm_output_keep_prob_tf"
+            )
+
+            self.query_input_tf = tf.placeholder(
+                tf.float32,
+                [None, self.padding_length, self.token_embedding_dimension],
+                name="query_input_tf",
+            )
+
+            self.gaz_input_tf = tf.placeholder(
+                tf.float32,
+                [None, self.padding_length, self.gaz_dimension],
+                name="gaz_input_tf",
+            )
+
+            self.label_tf = tf.placeholder(
+                tf.int32,
+                [None, int(self.padding_length), self.output_dimension],
+                name="label_tf",
+            )
+
+            self.batch_sequence_lengths_tf = tf.placeholder(
+                tf.int32, shape=[None], name="batch_sequence_lengths_tf"
+            )
+
+            self.batch_sequence_mask_tf = tf.placeholder(
+                tf.bool, shape=[None], name="batch_sequence_mask_tf"
+            )
+
+            if self.use_char_embeddings:
+                self.char_input_tf = tf.placeholder(
+                    tf.float32,
+                    [
+                        None,
+                        self.padding_length,
+                        self.max_char_per_word,
+                        self.character_embedding_dimension,
+                    ],
+                    name="char_input_tf",
+                )
+
+            combined_embedding_tf = self._construct_embedding_network()
+            self.lstm_output_tf = self._construct_lstm_network(combined_embedding_tf)
+            self.lstm_output_softmax_tf = tf.nn.softmax(
+                self.lstm_output_tf, name="output_softmax_tensor"
+            )
+            self.optimizer_tf, self.cost_tf = self._define_optimizer_and_cost()
+
+            self.global_init = tf.global_variables_initializer()
+            self.local_init = tf.local_variables_initializer()
+
+            self.saver = tf.train.Saver()
+
     def _fit(self, X, y):
         """Trains a classifier without cross-validation. It iterates through
         the data, feeds batches to the tensorflow session graph and fits the
@@ -815,7 +816,7 @@ class LstmModel(Tagger):  # pylint: disable=too-many-instance-attributes
             X (list of list of list of str): a list of queries to train on
             y (list of list of str): a list of expected labels
         """
-        self.construct_tf_variables()
+        self._construct_tf_variables()
         self.session = tf.Session(graph=self.graph)
 
         self.session.run([self.global_init, self.local_init])
@@ -850,7 +851,7 @@ class LstmModel(Tagger):  # pylint: disable=too-many-instance-attributes
                 if batch % int(self.display_epoch) == 0:
                     output, loss, _ = self.session.run(
                         [self.lstm_output_tf, self.cost_tf, self.optimizer_tf],
-                        feed_dict=self.construct_feed_dictionary(**batch_info),
+                        feed_dict=self._construct_feed_dictionary(**batch_info),
                     )
 
                     score = self._calculate_score(
@@ -871,7 +872,7 @@ class LstmModel(Tagger):  # pylint: disable=too-many-instance-attributes
                 else:
                     self.session.run(
                         self.optimizer_tf,
-                        feed_dict=self.construct_feed_dictionary(**batch_info),
+                        feed_dict=self._construct_feed_dictionary(**batch_info),
                     )
         return self
 
@@ -893,7 +894,7 @@ class LstmModel(Tagger):  # pylint: disable=too-many-instance-attributes
 
         output = self.session.run(
             [self.lstm_output_softmax_tf],
-            feed_dict=self.construct_feed_dictionary(
+            feed_dict=self._construct_feed_dictionary(
                 X, self.char_features_arr, self.gaz_features_arr, seq_len_arr
             ),
         )
@@ -931,7 +932,7 @@ class LstmModel(Tagger):  # pylint: disable=too-many-instance-attributes
 
         output = self.session.run(
             [self.lstm_output_softmax_tf],
-            feed_dict=self.construct_feed_dictionary(
+            feed_dict=self._construct_feed_dictionary(
                 X, self.char_features_arr, self.gaz_features_arr, seq_len_arr
             ),
         )

@@ -22,13 +22,15 @@ from sklearn.feature_selection import SelectFromModel, SelectPercentile
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import LabelEncoder as SKLabelEncoder
 from sklearn.preprocessing import MaxAbsScaler, StandardScaler
+from mindmeld.models.utils import START_TAG
 
-from .taggers import START_TAG, Tagger, extract_sequence_features
+from ..tagger import Tagger
+from ..utils import extract_sequence_features
 
 logger = logging.getLogger(__name__)
 
 
-class MemmModel(Tagger):
+class MemmForTokenClassification(Tagger):
     """A maximum-entropy Markov model."""
 
     @staticmethod

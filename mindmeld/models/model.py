@@ -228,15 +228,17 @@ class ModelConfig:
         return required_resources
 
 
-class BaseModel(ABC):
+class Model(ABC):
     """
     A minimalistic abstract class upon which all models are based.
     """
 
     def __init__(self, config: ModelConfig):
+        # vars used by all the different kinds of models
         self.config = config
         self.mindmeld_version = get_mm_version()
         self._resources = {}
+        self._label_encoder = get_label_encoder(self.config)
 
     @abstractmethod
     def initialize_resources(self, resource_loader, examples=None, labels=None):
@@ -313,7 +315,7 @@ class BaseModel(ABC):
         return self._resources.get(name)
 
 
-class Model(BaseModel):
+class SklearnModel(Model):
     """An abstract class upon which all models are based.
 
     Attributes:
@@ -322,7 +324,7 @@ class Model(BaseModel):
 
     def __init__(self, config):
         super().__init__(config)
-        self._label_encoder = get_label_encoder(self.config)
+
         self._current_params = None
         self._clf = None
         self.cv_loss_ = None
@@ -654,7 +656,7 @@ class Model(BaseModel):
         self._resources["tokenizer"] = resource_loader.get_tokenizer()
 
 
-class PytorchModel(BaseModel):
+class PytorchModel(Model):
 
     def __init__(self, config):
         super().__init__(config)

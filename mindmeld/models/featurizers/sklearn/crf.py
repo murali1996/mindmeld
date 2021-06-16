@@ -18,16 +18,17 @@ import logging
 
 import numpy as np
 from sklearn_crfsuite import CRF
+from mindmeld.models.helpers import FileBackedList
 
-from .taggers import Tagger, extract_sequence_features
-from ..helpers import FileBackedList
+from ..tagger import Tagger
+from ..utils import extract_sequence_features
 
 logger = logging.getLogger(__name__)
 
 ZERO = 1e-20
 
 
-class ConditionalRandomFields(Tagger):
+class CrfForTokenClassification(Tagger):
     """A Conditional Random Fields model."""
 
     @staticmethod

@@ -18,6 +18,14 @@ import random
 
 from sklearn.externals import joblib
 
+from .featurizers.sklearn.crf import CrfForTokenClassification
+from .featurizers.sklearn.memm import MemmForTokenClassification
+
+try:
+    from .featurizers.tensorflow.lstm import LstmForTokenClassification
+except ImportError:
+    LstmForTokenClassification = None
+
 from .evaluation import EntityModelEvaluation, EvaluatedExample
 from .helpers import (
     create_model,
@@ -26,20 +34,13 @@ from .helpers import (
     get_seq_tag_accuracy_scorer,
     ingest_dynamic_gazetteer,
 )
-from .model import ModelConfig, Model, PytorchModel
-from .taggers.crf import ConditionalRandomFields
-from .taggers.memm import MemmModel
+from .model import ModelConfig, SklearnModel, PytorchModel
 from ..exceptions import MindMeldError
-
-try:
-    from .taggers.lstm import LstmModel
-except ImportError:
-    LstmModel = None
 
 logger = logging.getLogger(__name__)
 
 
-class TaggerModel(Model):
+class SklearnTaggerModel(SklearnModel):
     """A machine learning classifier for tags.
 
     This class manages feature extraction, training, cross-validation, and
@@ -90,7 +91,7 @@ class TaggerModel(Model):
     def __init__(self, config):
         if not config.features:
             config_dict = config.to_dict()
-            config_dict["features"] = TaggerModel.DEFAULT_FEATURES
+            config_dict["features"] = SklearnTaggerModel.DEFAULT_FEATURES
             config = ModelConfig(**config_dict)
 
         super().__init__(config)
@@ -121,16 +122,16 @@ class TaggerModel(Model):
         """Returns the python class of the actual underlying model"""
         classifier_type = self.config.model_settings["classifier_type"]
         try:
-            if classifier_type == TaggerModel.LSTM_TYPE and LstmModel is None:
+            if classifier_type == SklearnTaggerModel.LSTM_TYPE and LstmForTokenClassification is None:
                 msg = (
                     "{}: Classifier type {!r} dependencies not found. Install the "
                     "mindmeld[tensorflow] extra to use this classifier type."
                 )
                 raise ValueError(msg.format(self.__class__.__name__, classifier_type))
             return {
-                TaggerModel.MEMM_TYPE: MemmModel,
-                TaggerModel.CRF_TYPE: ConditionalRandomFields,
-                TaggerModel.LSTM_TYPE: LstmModel,
+                SklearnTaggerModel.MEMM_TYPE: MemmForTokenClassification,
+                SklearnTaggerModel.CRF_TYPE: CrfForTokenClassification,
+                SklearnTaggerModel.LSTM_TYPE: LstmForTokenClassification,
             }[classifier_type]
         except KeyError as e:
             msg = "{}: Classifier type {!r} not recognized"
@@ -168,26 +169,26 @@ class TaggerModel(Model):
         classifier_type = self.config.model_settings["classifier_type"]
 
         # Sets the default scorer based on the classifier type
-        if classifier_type in TaggerModel.SEQUENCE_MODELS:
+        if classifier_type in SklearnTaggerModel.SEQUENCE_MODELS:
             default_scorer = get_seq_tag_accuracy_scorer()
         else:
-            default_scorer = TaggerModel.ACCURACY_SCORING
+            default_scorer = SklearnTaggerModel.ACCURACY_SCORING
 
         # Gets the scorer based on what is passed in to the selection settings (reverts to
         # default if nothing is passed in)
         scorer = selection_settings.get("scoring", default_scorer)
-        if scorer == TaggerModel.SEQ_ACCURACY_SCORING:
-            if classifier_type not in TaggerModel.SEQUENCE_MODELS:
+        if scorer == SklearnTaggerModel.SEQ_ACCURACY_SCORING:
+            if classifier_type not in SklearnTaggerModel.SEQUENCE_MODELS:
                 logger.error(
                     "Sequence accuracy is only available for the following models: "
                     "%s. Using tag level accuracy instead...",
-                    str(TaggerModel.SEQUENCE_MODELS),
+                    str(SklearnTaggerModel.SEQUENCE_MODELS),
                 )
-                return TaggerModel.ACCURACY_SCORING
+                return SklearnTaggerModel.ACCURACY_SCORING
             return get_seq_accuracy_scorer()
         elif (
-            scorer == TaggerModel.ACCURACY_SCORING and
-            classifier_type in TaggerModel.SEQUENCE_MODELS
+            scorer == SklearnTaggerModel.ACCURACY_SCORING and
+            classifier_type in SklearnTaggerModel.SEQUENCE_MODELS
         ):
             return get_seq_tag_accuracy_scorer()
         else:
@@ -249,7 +250,7 @@ class TaggerModel(Model):
             self._current_params = params
         else:
             # run cross validation to select params
-            if self._clf.__class__ == LstmModel:
+            if self._clf.__class__ == LstmForTokenClassification:
                 raise MindMeldError("The LSTM model does not support cross-validation")
 
             _, best_params = self._fit_cv(X, y, groups)
@@ -445,7 +446,7 @@ class AutoTaggerModel:
         classifier_type = config.model_settings["classifier_type"]
 
         if classifier_type in ["crf", "memm", "lstm"]:
-            return TaggerModel
+            return SklearnTaggerModel
 
         return PytorchTaggerModel
 

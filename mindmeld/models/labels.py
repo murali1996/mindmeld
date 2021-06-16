@@ -17,7 +17,7 @@ subpackage."""
 import logging
 
 from .helpers import register_label
-from .taggers.taggers import (
+from .utils import (
     get_entities_from_tags,
     get_tags_from_entities,
 )

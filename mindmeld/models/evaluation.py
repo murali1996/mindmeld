@@ -24,7 +24,7 @@ from .helpers import (
     entity_seqs_equal,
     get_label_encoder,
 )
-from .taggers.taggers import (
+from .utils import (
     BoundaryCounts,
     get_boundary_counts,
 )

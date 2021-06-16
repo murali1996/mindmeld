@@ -20,7 +20,7 @@ import os
 from typing import Union
 
 from .helpers import register_model
-from .model import ModelConfig, BaseModel
+from .model import ModelConfig, Model as BaseModel
 from .tagger_models import AutoTaggerModel
 from .text_models import AutoTextModel
 

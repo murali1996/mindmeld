@@ -36,12 +36,12 @@ from .helpers import (
     WORD_FREQ_RSC,
     WORD_NGRAM_FREQ_RSC,
 )
-from .model import ModelConfig, Model, PytorchModel
+from .model import ModelConfig, SklearnModel, PytorchModel
 
 logger = logging.getLogger(__name__)
 
 
-class TextModel(Model):
+class SklearnTextModel(SklearnModel):
     _NEG_INF = -1e10
 
     # classifier types
@@ -88,10 +88,10 @@ class TextModel(Model):
         classifier_type = self.config.model_settings["classifier_type"]
         try:
             return {
-                TextModel.LOG_REG_TYPE: LogisticRegression,
-                TextModel.DECISION_TREE_TYPE: DecisionTreeClassifier,
-                TextModel.RANDOM_FOREST_TYPE: RandomForestClassifier,
-                TextModel.SVM_TYPE: SVC,
+                SklearnTextModel.LOG_REG_TYPE: LogisticRegression,
+                SklearnTextModel.DECISION_TREE_TYPE: DecisionTreeClassifier,
+                SklearnTextModel.RANDOM_FOREST_TYPE: RandomForestClassifier,
+                SklearnTextModel.SVM_TYPE: SVC,
             }[classifier_type]
         except KeyError as e:
             msg = "{}: Classifier type {!r} not recognized"
@@ -102,7 +102,7 @@ class TextModel(Model):
         Returns the scorer to use based on the selection settings and classifier type,
         defaulting to accuracy.
         """
-        return selection_settings.get("scoring", TextModel.ACCURACY_SCORING)
+        return selection_settings.get("scoring", SklearnTextModel.ACCURACY_SCORING)
 
     def select_params(self, examples, labels, selection_settings=None):
         y = self._label_encoder.encode(labels)
@@ -134,7 +134,7 @@ class TextModel(Model):
             _, probas = row
             for label, proba in probas.items():
                 if proba == -np.Infinity:
-                    probas[label] = TextModel._NEG_INF
+                    probas[label] = SklearnTextModel._NEG_INF
         return predictions
 
     def _get_feature_weight(self, feat_name, label_class):
@@ -428,7 +428,7 @@ class TextModel(Model):
                 selection will be bypassed if this is provided
 
         Returns:
-            (TextModel): Returns self to match classifier scikit-learn \
+            (SklearnTextModel): Returns self to match classifier scikit-learn \
                 interfaces.
         """
         params = params or self.config.params
@@ -496,7 +496,7 @@ class AutoTextModel:
         classifier_type = config.model_settings["classifier_type"]
 
         if classifier_type in ["logreg", "dtree", "rforest", "svm"]:
-            return TextModel
+            return SklearnTextModel
 
         return PytorchTextModel
 
